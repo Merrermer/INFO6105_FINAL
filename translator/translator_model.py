@@ -68,10 +68,55 @@ class Encoder(nn.Module):
         for i in range(self.layers):
             x = self.blocks[i](x, e_mask)
         return self.norm(x)
+    
+
+class DecoderBlock(nn.Module):
+    def __init__(self, config: ModelConfig):
+        super().__init__()
+        # Masked self-attention
+        self.self_att = Attention(config)
+        self.self_att_norm = RMSNorm(config.dim, config.norm_eps)
+        self.self_att_dropout = nn.Dropout(config.dropout_rate)
+
+        # Cross-attention
+        self.cross_att = Attention(config)
+        self.cross_att_norm = RMSNorm(config.dim, config.norm_eps)
+        self.cross_att_dropout = nn.Dropout(config.dropout_rate)
+
+        # Feed Forward
+        self.feed_forward = FeedForward(config)
+        self.feed_forward_norm = RMSNorm(config.dim, config.norm_eps)
+        self.feed_forward_dropout = nn.Dropout(config.dropout_rate)
+
+    def forward(self, x, e_output, d_mask, e_mask):
+        # Masked Self-Attention
+        x_norm = self.self_att_norm(x)
+        x = x + self.self_att_dropout(self.self_att(x_norm, x_norm, x_norm, d_mask))
+
+        # Cross-Attention
+        x_norm = self.cross_att_norm(x)
+        x = x + self.cross_att_dropout(self.cross_att(x_norm, e_output, e_output, e_mask))
+
+        # Feed Forward
+        x_norm = self.feed_forward_norm(x)
+        x = x + self.feed_forward_dropout(self.feed_forward(x_norm))
+
+        return x
 
 class Decoder(nn.Module):
     def __init__(self, config: ModelConfig):
         super().__init__()
+        self.layers = config.n_decoder_layers
+        self.blocks = nn.ModuleList([DecoderBlock(config) for _ in range(self.layers)])
+        self.norm = RMSNorm(config.dim, config.norm_eps)
+
+    def forward(self, x, e_output, d_mask, e_mask):
+        for i in range(self.layers):
+            x = self.blocks[i](x, e_output, d_mask, e_mask)
+        return self.norm(x)
+
+
+
 
 class Attention(nn.Module):
     def __init__(self, config: ModelConfig):
@@ -151,6 +196,8 @@ class Transformer(nn.Module):
         self.tgt_embedding = nn.Embedding(self.tgt_vocab_size, config.dim)
         
         self.encoder = Encoder(config)
+        
+        self.decoder = Decoder(config)
 
         self.softmax = nn.Softmax(dim=-1)
 
@@ -160,4 +207,26 @@ class Transformer(nn.Module):
         tgt: [batch_size, seq_len], e.g. [[1, 2, 3, 4], [5, 6, 7, 8]] `1` can refer to token `我`
         '''
         src = self.src_embedding(src) # [batch_size, seq_len, dim]
+        # positional embadding
         tgt = self.tgt_embedding(tgt) # [batch_size, seq_len, dim]
+
+        src_pad_mask = (src != 0).unsqueeze(1).unsqueeze(2)  # [batch_size, 1, 1, src_seq_len]
+        tgt_pad_mask = (tgt != 0).unsqueeze(1).unsqueeze(2)  # [batch_size, 1, 1, tgt_seq_len]
+
+        tgt_seq_len = tgt.size(1)
+        device = tgt.device
+        subsequent_mask = self.generate_subsequent_mask(tgt_seq_len, device)  # [1, tgt_seq_len, tgt_seq_len]
+        subsequent_mask = subsequent_mask.unsqueeze(1)  # [1, 1, tgt_seq_len, tgt_seq_len]
+
+        d_mask = tgt_pad_mask & (~subsequent_mask)  # Invert subsequent_mask to match padding logic
+
+        # Encoder output
+        e_output = self.encoder(src, src_pad_mask)  # [batch_size, src_seq_len, dim]
+
+        # Decoder output
+        d_output = self.decoder(tgt, e_output, d_mask, src_pad_mask)
+
+        # Output layer
+        output = self.output_layer(d_output)  # [batch_size, tgt_seq_len, tgt_vocab_size]
+
+        return output
