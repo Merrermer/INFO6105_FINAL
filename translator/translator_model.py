@@ -14,7 +14,7 @@ class Translator:
             src_vocab_size=self.tokenizer.src_vocab_size,
             tgt_vocab_size=self.tokenizer.tgt_vocab_size,
         )
-        self.transformer = Transformer(self.model_config, self.tokenizer.src_pad_id, self.tokenizer.tgt_pad_id, self.device)
+        self.transformer = Transformer(self.model_config, self.tokenizer.src_pad_id, self.tokenizer.tgt_pad_id, self.device).to(self.device)
 
     def train(self, num_epochs=10):
         self.transformer.train()
