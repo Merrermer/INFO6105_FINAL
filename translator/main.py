@@ -74,7 +74,7 @@ class Translator:
         # src_tokens = self.transformer.positional_encoding(src_tokens)
         e_output = self.transformer.encoder(src_tokens, src_pad_mask)
         
-        result_sequence = torch.LongTensor([self.tokenizer.tgt_pad_id]).to(self.device)
+        result_sequence = torch.LongTensor([self.tokenizer.tgt_pad_id] * self.model_config.max_seq_len).to(self.device)
         result_sequence[0] = self.tokenizer.tgt_bos_id
         cur_len = 1
         
@@ -88,7 +88,7 @@ class Translator:
             # tgt_tokens = self.transformer.positional_encoding(tgt_tokens)
             decoder_output = self.transformer.decoder(tgt_tokens, e_output, d_mask, src_pad_mask)
             
-            output = self.transformer.softmax()
+            output = self.transformer.softmax(self.transformer.output_layer(decoder_output))
             output = torch.argmax(output, dim=-1)
             latest_word_id = output[0][i].item()
             
@@ -97,7 +97,10 @@ class Translator:
                 cur_len += 1
             if latest_word_id == self.tokenizer.tgt_eos_id:
                 break
-
+        if result_sequence[-1].item() == self.tokenizer.tgt_pad_id:
+            result_sequence = result_sequence[1:cur_len].tolist()
+        else:
+            result_sequence = result_sequence[1:].tolist()
         return self.tokenizer.decode_tgt(result_sequence)
     
 if __name__ == '__main__':
@@ -105,6 +108,6 @@ if __name__ == '__main__':
     
     translator = Translator()
     
-    input_sentence = "I am a student."
+    input_sentence = "我是学生"
     translated_sentence = translator.translate(input_sentence)
     print(translated_sentence)
