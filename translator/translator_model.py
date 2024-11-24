@@ -203,6 +203,8 @@ class Transformer(nn.Module):
         
         self.decoder = Decoder(config)
 
+        self.output_layer = nn.Linear(config.dim, config.tgt_vocab_size)
+
         self.softmax = nn.Softmax(dim=-1)
 
 
@@ -233,9 +235,9 @@ class Transformer(nn.Module):
         e_output = self.encoder(src, src_pad_mask)  # [batch_size, src_seq_len, dim]
 
         # Decoder output
-        d_output = self.decoder(tgt, e_output, d_mask, src_pad_mask)
+        d_output = self.decoder(tgt, e_output, d_mask, src_pad_mask) # [batch_size, tgt_seq_len, dim]
 
         # Output layer
-        output = self.softmax(d_output)  # [batch_size, tgt_seq_len, tgt_vocab_size]
+        logits = self.output_layer(d_output)  # [batch_size, tgt_seq_len, tgt_vocab_size]
 
-        return output
+        return logits
