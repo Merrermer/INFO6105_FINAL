@@ -1,9 +1,8 @@
 import torch
-
 from tokenizer import Tokenizer
 from translator_model import Transformer
 from config import ModelConfig
-import torch
+from torch import nn
 
 class Translator:
     def __init__(self):
@@ -15,8 +14,50 @@ class Translator:
         )
         self.transformer = Transformer(self.model_config, self.tokenizer.src_pad_id, self.tokenizer.tgt_pad_id, self.device)
 
-    def train(self):
-        pass
+    def train(self, train_dataloader, num_epochs=10):
+        self.transformer.train()
+        optimizer = torch.optim.Adam(self.transformer.parameters(), lr=1e-4)
+        criterion = nn.CrossEntropyLoss(ignore_index=self.tokenizer.tgt_pad_token_id)
+
+        for epoch in range(num_epochs):
+            for batch in train_dataloader:
+                src_batch = batch['src'].to(self.device)
+                tgt_batch = batch['tgt'].to(self.device)
+
+                # Prepare input and target sequences
+                tgt_input = tgt_batch[:, :-1]  # Exclude the last token
+                tgt_target = tgt_batch[:, 1:]  # Exclude the first token
+
+                # # Create masks
+                # src_pad_mask = (src_batch != self.tokenizer.src_pad_token_id).unsqueeze(1).unsqueeze(2)
+                # tgt_pad_mask = (tgt_input != self.tokenizer.tgt_pad_token_id).unsqueeze(1).unsqueeze(2)
+                # tgt_seq_len = tgt_input.size(1)
+                # subsequent_mask = torch.tril(torch.ones((1, 1, tgt_seq_len, tgt_seq_len), device=self.device)).bool()
+                # tgt_mask = tgt_pad_mask & subsequent_mask
+
+                # # Forward pass
+                # optimizer.zero_grad()
+                # encoder_output = self.transformer.encoder(src_batch, src_pad_mask)
+                # decoder_output = self.transformer.decoder(tgt_input, encoder_output, tgt_mask, src_pad_mask)
+                # output_logits = self.transformer.output_layer(decoder_output)
+
+                optimizer.zero_grad()
+                output_logits = self.transformer(src_batch, tgt_input)
+
+                # Compute loss
+                # Notice that here we are using crossentropy loss. In this case, we cannot add softmax inside the transformer,
+                # since crossentropy requires raw logits
+                
+                loss = criterion(output_logits.view(-1, self.tokenizer.tgt_vocab_size), tgt_target.contiguous().view(-1))
+
+                # Backward pass and optimization
+                loss.backward()
+                optimizer.step()
+
+            print(f"Epoch {epoch+1}/{num_epochs}, Loss: {loss.item()}")
+
+        # Save the trained model
+        torch.save(self.transformer.state_dict(), 'trained_transformer.pth')
 
     def _preprocess_sequence(self, sequence):
         if len(sequence) < self.model_config.max_seq_len:
