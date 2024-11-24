@@ -74,7 +74,7 @@ if __name__ == "__main__":
     t = tokenizer.encode_src("The tendency is either", bos=True, eos=True)
     print(t)
     print(tokenizer.decode_src(t))
-    t = tokenizer.encode_tgt("我 的 世 界", True, True)
+    t = tokenizer.encode_tgt("我的世界", True, True)
     print(t)
     print(tokenizer.decode_tgt(t))
     # print(tokenizer.tokenize_tgt("你好，世界！"))

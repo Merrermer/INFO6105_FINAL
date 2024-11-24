@@ -11,4 +11,4 @@ class ModelConfig(BaseModel):
     src_vocab_size: int = Field(description="source vocabulary size")
     tgt_vocab_size: int = Field(description="target vocabulary size")
     max_seq_len: int = Field(default=256, description="maximum sequence length")
-    max_batch_size: int = Field(default=32, description="maximum batch size")
+    max_batch_size: int = Field(default=64, description="maximum batch size")
