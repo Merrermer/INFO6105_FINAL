@@ -1,6 +1,7 @@
 import os
 from data import ds
 from sentencepiece import SentencePieceTrainer
+from tqdm import tqdm
 
 def extract_text(dataset, src_lang='en', tgt_lang='zh', split='train'):
     src_texts = []
@@ -24,8 +25,8 @@ def train_tokenizer(input_file, model_prefix, vocab_size=16000, character_covera
         train_extremely_large_corpus=True,
         shuffle_input_sentence=True,
         max_sentence_length=10000,
-        input_sentence_size=25984574,
-        # input_sentence_size=10000,
+        # input_sentence_size=25984574,
+        input_sentence_size=10000,
     )
 def main():
     if not os.path.exists('./data/sp'):
@@ -35,12 +36,14 @@ def main():
     if not os.path.exists(src_text_file) or not os.path.exists(tgt_text_file):
         src_texts, tgt_texts = extract_text(ds)
         
-        with open('./data/src.txt', 'w') as f:
-            for text in src_texts:
+        print("Writing source texts...")
+        with open('./data/src.txt', 'w', encoding='utf-8') as f:
+            for text in tqdm(src_texts, desc="Writing source texts"):
                 f.write(text + '\n')
 
-        with open('./data/tgt.txt', 'w') as f:
-            for text in tgt_texts:
+        print("Writing target texts...")
+        with open('./data/tgt.txt', 'w', encoding='utf-8') as f:
+            for text in tqdm(tgt_texts, desc="Writing target texts"):
                 f.write(text + '\n')
     train_tokenizer(
         input_file=src_text_file,

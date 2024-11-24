@@ -201,6 +201,12 @@ class Transformer(nn.Module):
 
         self.softmax = nn.Softmax(dim=-1)
 
+
+    
+    def generate_subsequent_mask(self, size, device):
+        "Generates an upper-triangular matrix of -inf, with zeros on diag."
+        return torch.tril(torch.ones((1, size, size), device=device, dtype=torch.bool)) ##################################
+    
     def forward(self, src, tgt):
         '''
         src: [batch_size, seq_len], e.g. [[1, 2, 3, 4], [5, 6, 7, 8]] `1` can refer to token `I`
@@ -210,15 +216,17 @@ class Transformer(nn.Module):
         # positional embadding
         tgt = self.tgt_embedding(tgt) # [batch_size, seq_len, dim]
 
-        src_pad_mask = (src != 0).unsqueeze(1).unsqueeze(2)  # [batch_size, 1, 1, src_seq_len]
-        tgt_pad_mask = (tgt != 0).unsqueeze(1).unsqueeze(2)  # [batch_size, 1, 1, tgt_seq_len]
+        pad_token = 0
+
+        src_pad_mask = (src != pad_token).unsqueeze(1).unsqueeze(2)  # [batch_size, 1, 1, src_seq_len]
+        tgt_pad_mask = (tgt != pad_token).unsqueeze(1).unsqueeze(2)  # [batch_size, 1, 1, tgt_seq_len]
 
         tgt_seq_len = tgt.size(1)
         device = tgt.device
         subsequent_mask = self.generate_subsequent_mask(tgt_seq_len, device)  # [1, tgt_seq_len, tgt_seq_len]
         subsequent_mask = subsequent_mask.unsqueeze(1)  # [1, 1, tgt_seq_len, tgt_seq_len]
 
-        d_mask = tgt_pad_mask & (~subsequent_mask)  # Invert subsequent_mask to match padding logic
+        d_mask = tgt_pad_mask & (subsequent_mask)
 
         # Encoder output
         e_output = self.encoder(src, src_pad_mask)  # [batch_size, src_seq_len, dim]

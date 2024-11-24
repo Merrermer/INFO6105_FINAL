@@ -1,6 +1,7 @@
 from tokenizer import Tokenizer
 from translator_model import Transformer
 from config import ModelConfig
+import torch
 
 class Translator:
     def __init__(self):
@@ -17,8 +18,12 @@ class Translator:
     def translate(self, src_sentence: str) -> str:
         tokens = self.tokenizer.encode_src(src_sentence, True, True)
         print(tokens)
-        return "Default translated sentence"
+        res = self.transformer.forward(tokens)
 
+        res = self.tokenizer.decode_tgt(tokens)
+        print(res)
+        return "Default translated sentence"
+    
 if __name__ == '__main__':
     
     
