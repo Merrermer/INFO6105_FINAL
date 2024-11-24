@@ -187,10 +187,14 @@ class Attention(nn.Module):
         return attn_values
 
 class Transformer(nn.Module):
-    def __init__(self, config: ModelConfig):
+    def __init__(self, config: ModelConfig, src_pad_id, tgt_pad_id, device):
         super().__init__()
         self.src_vocab_size = config.src_vocab_size
         self.tgt_vocab_size = config.tgt_vocab_size
+        self.src_pad_id = src_pad_id
+        self.tgt_pad_id = tgt_pad_id
+        self.device = device
+        self.max_seq_len = config.max_seq_len
         
         self.src_embedding = nn.Embedding(self.src_vocab_size, config.dim)
         self.tgt_embedding = nn.Embedding(self.tgt_vocab_size, config.dim)
@@ -203,9 +207,9 @@ class Transformer(nn.Module):
 
 
     
-    def generate_subsequent_mask(self, size, device):
+    def generate_subsequent_mask(self, size):
         "Generates an upper-triangular matrix of -inf, with zeros on diag."
-        return torch.tril(torch.ones((1, size, size), device=device, dtype=torch.bool)) ##################################
+        return torch.tril(torch.ones((1, size, size), device=self.device, dtype=torch.bool)) ##################################
     
     def forward(self, src, tgt):
         '''
@@ -216,14 +220,11 @@ class Transformer(nn.Module):
         # positional embadding
         tgt = self.tgt_embedding(tgt) # [batch_size, seq_len, dim]
 
-        pad_token = 0
+        src_pad_mask = (src != self.src_pad_id).unsqueeze(1).unsqueeze(2)  # [batch_size, 1, 1, src_seq_len]
+        tgt_pad_mask = (tgt != self.tgt_pad_id).unsqueeze(1).unsqueeze(2)  # [batch_size, 1, 1, tgt_seq_len]
 
-        src_pad_mask = (src != pad_token).unsqueeze(1).unsqueeze(2)  # [batch_size, 1, 1, src_seq_len]
-        tgt_pad_mask = (tgt != pad_token).unsqueeze(1).unsqueeze(2)  # [batch_size, 1, 1, tgt_seq_len]
-
-        tgt_seq_len = tgt.size(1)
-        device = tgt.device
-        subsequent_mask = self.generate_subsequent_mask(tgt_seq_len, device)  # [1, tgt_seq_len, tgt_seq_len]
+        tgt_seq_len = self.max_seq_len
+        subsequent_mask = self.generate_subsequent_mask(tgt_seq_len)  # [1, tgt_seq_len, tgt_seq_len]
         subsequent_mask = subsequent_mask.unsqueeze(1)  # [1, 1, tgt_seq_len, tgt_seq_len]
 
         d_mask = tgt_pad_mask & (subsequent_mask)
@@ -235,6 +236,6 @@ class Transformer(nn.Module):
         d_output = self.decoder(tgt, e_output, d_mask, src_pad_mask)
 
         # Output layer
-        output = self.output_layer(d_output)  # [batch_size, tgt_seq_len, tgt_vocab_size]
+        output = self.softmax(d_output)  # [batch_size, tgt_seq_len, tgt_vocab_size]
 
         return output
